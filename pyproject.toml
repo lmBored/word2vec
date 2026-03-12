@@ -6,4 +6,52 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.4.3",
+    "pre-commit>=4.5.1",
+    "ruff>=0.15.5",
+]
+
+[tool.ruff]
+line-length = 120
+lint.select = [
+    "ALL", # include all the rules, including new ones
+]
+lint.ignore = [
+    #### modules
+    "ANN", # flake8-annotations
+    "COM", # flake8-commas
+    "C90", # mccabe complexity
+    "DJ",  # django
+    "EXE", # flake8-executable
+    "T10", # debugger
+    "TID", # flake8-tidy-imports
+
+    #### specific rules
+    "E302",
+    "E701",   # ignore return on same line
+    "D100",   # ignore missing docs
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D106",
+    "D107",
+    "D200",
+    "D205",
+    "D212",
+    "D400",
+    "D401",
+    "D415",
+    "E402",   # false positives for local imports
+    "E501",   # line too long
+    "TRY003", # external messages in exceptions are too verbose
+    "TD002",
+    "TD003",
+    "FIX002", # too verbose descriptions of todos
+    "T201",
+    "PLR2004",
+    "BLE001",
+    "C416",
+    "NPY002",
+    "PERF401",
 ]
