@@ -98,3 +98,57 @@ def extract_all_skipgram_pairs(corpus, window_size=5):
             contexts.append(ctx_word)
 
     return np.array(centers, dtype=np.int32), np.array(contexts, dtype=np.int32)
+
+
+class NegativeSampler:
+    def __init__(self, vocab, power=0.75, rng=None):
+        self.vocab = vocab
+        self.vocab_size = len(vocab)
+        self.rng = rng if rng is not None else np.random.default_rng()
+
+        # Noise dist P(w) = freq(w)^power
+        counts = np.zeros(self.vocab_size, dtype=np.float64)
+        for word, count in vocab.word_counts.items():
+            idx = vocab.get_index(word)
+            if idx != 0:
+                counts[idx] = count
+
+        # Power transofrm
+        powered = counts**power
+        self.noise_distribution = powered / powered.sum()
+
+    def sample(self, batch_size, n_negatives):
+        return self.rng.choice(self.vocab_size, size=(batch_size, n_negatives), p=self.noise_distribution).astype(
+            np.int32
+        )
+
+
+if __name__ == "__main__":
+    from src.data.datasets import prepare_text8_dataset
+
+    corpus, vocab = prepare_text8_dataset(max_vocab_size=30000)
+
+    keep_probs = compute_subsampling_probabilities(vocab)
+    for word in ["the", "of", "and", "in", "to"]:
+        if word in vocab:
+            idx = vocab.get_index(word)
+            freq = vocab.word_freqs[word]
+            print(f"{word}: freq={freq:.6f}, P(keep)={keep_probs[idx]:.4f}")
+
+    subsampled = apply_subsampling(corpus, keep_probs, rng=np.random.default_rng(42))
+    print(f"old: {len(corpus):,} tokens")
+    print(f"new: {len(subsampled):,} tokens, {100 * len(subsampled) / len(corpus):.1f}%")
+
+    print()
+    print("Skip gram")
+    batch_gen = SkipGramBatchGenerate(subsampled, window_size=5, batch_size=128, rng=np.random.default_rng(42))
+
+    centers, contexts = batch_gen.generate_batch()
+    for i in range(5):
+        print(f"({vocab.get_word(centers[i])}, {vocab.get_word(contexts[i])})")
+
+    print()
+    print("Negative sampler")
+    neg_sampler = NegativeSampler(vocab, rng=np.random.default_rng(42))
+    negatives = neg_sampler.sample(batch_size=128, n_negatives=5)
+    print(f"{[vocab.get_word(n) for n in negatives[0]]}")
