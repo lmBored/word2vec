@@ -63,4 +63,6 @@ lint.ignore = [
     "PERF102",
     "B007",
     "RET504",
+    "ARG001",
+    "EM101",
 ]
