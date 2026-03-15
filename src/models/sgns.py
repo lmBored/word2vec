@@ -7,19 +7,22 @@ def sigmoid(x):
 
 
 class SGNS:
-    def __init__(self, window_size=2, num_neg_samples=5, learning_rate=0.025, embedding_dim=100, seed=None):
+    def __init__(
+        self, window_size=2, num_neg_samples=5, learning_rate=0.025, embedding_dim=100, seed=None, batch_size=512
+    ):
         self.window_size = window_size
         self.num_neg_samples = num_neg_samples
         self.learning_rate = learning_rate
         self.embedding_dim = embedding_dim
+        self.batch_size = batch_size
 
         if seed is not None:
             np.random.seed(seed)
 
         # Will be set by build_vocab
         self.vocab_size = 0
-        self.word2idx: dict[str, int] = {}
-        self.idx2word: dict[int, str] = {}
+        self.word2idx = {}
+        self.idx2word = {}
         self.word_counts = np.array([])
         self.noise_dist = np.array([])
         self.W_center = np.array([])
@@ -27,7 +30,7 @@ class SGNS:
 
     def build_vocab(self, corpus, min_count=1):
         # Count word freq
-        word_freq: dict[str, int] = {}
+        word_freq = {}
         for sentence in corpus:
             for word in sentence.lower().split():
                 word_freq[word] = word_freq.get(word, 0) + 1
@@ -75,6 +78,25 @@ class SGNS:
 
         return np.array(negatives[:k], dtype=np.int64)
 
+    def sample_negatives_batch(self, context_indices, k):
+        batch_size = len(context_indices)
+        # Sample a bit more because of filtering
+        oversample = int(k * 1.2) + 2
+        candidates = np.random.choice(self.vocab_size, size=(batch_size, oversample), p=self.noise_dist)
+
+        neg_samples = np.zeros((batch_size, k), dtype=np.int64)
+        for i in range(batch_size):
+            # Filter true context word
+            valid = candidates[i][candidates[i] != context_indices[i]]
+            if len(valid) >= k:
+                neg_samples[i] = valid[:k]
+            else:
+                # Need more samples
+                extra = self.sample_negatives(context_indices[i], k)
+                neg_samples[i] = extra
+
+        return neg_samples
+
     def forward_backward(self, center_idx, context_idx, neg_indices):
         v_w = self.W_center[center_idx]  # (D,)
         v_c = self.W_context[context_idx]  # (D,)
@@ -102,7 +124,35 @@ class SGNS:
 
         return loss, grad_center, grad_context_pos, grad_context_neg
 
-    def step(self, center_idx, context_idx) -> float:
+    def forward_backward_batch(self, center_indices, context_indices, neg_indices):
+        v_w = self.W_center[center_indices]  # (B, D)
+        v_c = self.W_context[context_indices]  # (B, D)
+        v_neg = self.W_context[neg_indices]  # (B, K, D)
+
+        # Forward
+        scores_pos = np.sum(v_c * v_w, axis=1)  # (B,)
+        probs_pos = sigmoid(scores_pos)  # (B,)
+        # (B, K, D) @ (B, D, 1) -> (B, K, 1) -> (B, K)
+        scores_neg = np.einsum("bkd,bd->bk", v_neg, v_w)  # (B, K)
+        probs_neg = sigmoid(scores_neg)  # (B, K)
+
+        # Loss
+        loss_pos = -np.log(probs_pos + 1e-10)  # (B,)
+        loss_neg = -np.sum(np.log(1 - probs_neg + 1e-10), axis=1)  # (B,)
+        total_loss = np.sum(loss_pos + loss_neg)
+
+        # Backward
+        errors_pos = probs_pos - 1.0  # (B,)
+        errors_neg = probs_neg  # (B, K)
+
+        # Gradients
+        grad_center = errors_pos[:, np.newaxis] * v_c + np.einsum("bk,bkd->bd", errors_neg, v_neg)
+        grad_context_pos = errors_pos[:, np.newaxis] * v_w
+        grad_context_neg = errors_neg[:, :, np.newaxis] * v_w[:, np.newaxis, :]
+
+        return total_loss, grad_center, grad_context_pos, grad_context_neg
+
+    def step(self, center_idx, context_idx):
         neg_indices = self.sample_negatives(context_idx, self.num_neg_samples)
         loss, grad_center, grad_pos, grad_neg = self.forward_backward(center_idx, context_idx, neg_indices)
 
@@ -113,27 +163,59 @@ class SGNS:
 
         return loss
 
+    def step_batch(self, center_indices, context_indices):
+        K = self.num_neg_samples
+
+        neg_indices = self.sample_negatives_batch(context_indices, K)  # (B, K)
+        loss, grad_center, grad_pos, grad_neg = self.forward_backward_batch(
+            center_indices, context_indices, neg_indices
+        )
+
+        # Update
+        np.add.at(self.W_center, center_indices, -self.learning_rate * grad_center)  # np.add.at for duplicate indices
+        np.add.at(self.W_context, context_indices, -self.learning_rate * grad_pos)
+        # neg_indices is (B, K), grad_neg is (B, K, D)
+        flat_neg_indices = neg_indices.ravel()  # (B*K,)
+        flat_grad_neg = grad_neg.reshape(-1, self.embedding_dim)  # (B*K, D)
+        np.add.at(self.W_context, flat_neg_indices, -self.learning_rate * flat_grad_neg)
+
+        return loss
+
     def train(self, corpus, epochs=5, min_count=1, verbose=True):
         self.build_vocab(corpus, min_count)
 
         pairs = self.generate_training_pairs(corpus)
+        pairs = np.array(pairs, dtype=np.int64)
+        num_pairs = len(pairs)
 
         if verbose:
             print(f"Vocab size: {self.vocab_size}")
-            print(f"len pairs: {len(pairs)}")
+            print(f"Training pairs: {num_pairs:,}")
+            print(f"Batch size: {self.batch_size}")
 
         losses = []
         for epoch in range(epochs):
-            np.random.shuffle(pairs)
+            # Shuffle pairs
+            indices = np.random.permutation(num_pairs)
+            pairs_shuffled = pairs[indices]
 
             epoch_loss = 0.0
-            for center_idx, context_idx in pairs:
-                epoch_loss += self.step(center_idx, context_idx)
+            num_batches = (num_pairs + self.batch_size - 1) // self.batch_size
 
-            avg_loss = epoch_loss / len(pairs)
+            for batch_idx in range(num_batches):
+                start = batch_idx * self.batch_size
+                end = min(start + self.batch_size, num_pairs)
+
+                batch_pairs = pairs_shuffled[start:end]
+                center_indices = batch_pairs[:, 0]
+                context_indices = batch_pairs[:, 1]
+
+                epoch_loss += self.step_batch(center_indices, context_indices)
+
+            avg_loss = epoch_loss / num_pairs
             losses.append(avg_loss)
 
-            if verbose and epoch % 10 == 0:
+            if verbose:
                 print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}")
 
         return losses
