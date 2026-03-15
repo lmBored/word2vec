@@ -145,7 +145,7 @@ class CBOW:
             avg_loss = epoch_loss / len(data)
             losses.append(avg_loss)
 
-            if verbose and (epoch + 1) % (epochs // 10) == 0:
+            if verbose and epoch % 10 == 0:
                 print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}")
 
         return losses
