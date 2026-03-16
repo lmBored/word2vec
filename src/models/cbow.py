@@ -1,5 +1,7 @@
 import numpy as np
 
+from src.Distribution import NegativeSampleCache
+
 
 def sigmoid(x):
     x = np.clip(x, -500, 500)
@@ -28,6 +30,7 @@ class CBOW:
         self.noise_dist = np.array([])
         self.W_input = np.array([])
         self.W_output = np.array([])
+        self.neg_cache = None
 
     def build_vocab(self, corpus, min_count=1):
         # Count word freq
@@ -48,6 +51,8 @@ class CBOW:
         # 0.75 exponent from the paper, to smooth the distribution
         smoothed = np.power(self.word_counts, 0.75)
         self.noise_dist = smoothed / smoothed.sum()
+
+        self.neg_cache = NegativeSampleCache(self.noise_dist)
 
         scale = 0.5 / self.embedding_dim
         self.W_input = np.random.uniform(-scale, scale, (self.vocab_size, self.embedding_dim))
@@ -90,22 +95,7 @@ class CBOW:
 
     def sample_negatives_batch(self, center_indices, k):
         batch_size = len(center_indices)
-        # Sample a bit more because of filtering
-        oversample = int(k * 1.2) + 2
-        candidates = np.random.choice(self.vocab_size, size=(batch_size, oversample), p=self.noise_dist)
-
-        neg_samples = np.zeros((batch_size, k), dtype=np.int64)
-        for i in range(batch_size):
-            # Filter true center word
-            valid = candidates[i][candidates[i] != center_indices[i]]
-            if len(valid) >= k:
-                neg_samples[i] = valid[:k]
-            else:
-                # Need more samples
-                extra = self.sample_negatives(center_indices[i], k)
-                neg_samples[i] = extra
-
-        return neg_samples
+        return self.neg_cache.sample_batch(batch_size, k)
 
     def forward_backward(self, context_indices, center_idx, neg_indices):
         context_indices_arr = np.array(context_indices)
