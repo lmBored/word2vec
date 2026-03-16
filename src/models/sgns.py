@@ -1,4 +1,5 @@
 import numpy as np
+from numba import njit, prange
 
 from src.Distribution import NegativeSampleCache
 
@@ -6,6 +7,17 @@ from src.Distribution import NegativeSampleCache
 def sigmoid(x):
     x = np.clip(x, -500, 500)
     return 1.0 / (1.0 + np.exp(-x))
+
+
+@njit(parallel=True, cache=True)
+def _update_embeddings(W, indices, grads, lr):
+    """Grad update with jit, faster that np.add.at"""
+    n_updates = len(indices)
+    n_dims = W.shape[1]
+    for d in prange(n_dims):
+        for i in range(n_updates):
+            idx = indices[i]
+            W[idx, d] -= lr * grads[i, d]
 
 
 class SGNS:
@@ -162,12 +174,13 @@ class SGNS:
         )
 
         # Update
-        np.add.at(self.W_center, center_indices, -self.learning_rate * grad_center)  # np.add.at for duplicate indices
-        np.add.at(self.W_context, context_indices, -self.learning_rate * grad_pos)
-        # neg_indices is (B, K), grad_neg is (B, K, D)
-        flat_neg_indices = neg_indices.ravel()  # (B*K,)
-        flat_grad_neg = grad_neg.reshape(-1, self.embedding_dim)  # (B*K, D)
-        np.add.at(self.W_context, flat_neg_indices, -self.learning_rate * flat_grad_neg)
+        lr = self.learning_rate
+        _update_embeddings(self.W_center, center_indices, grad_center, lr)
+        _update_embeddings(self.W_context, context_indices, grad_pos, lr)
+
+        flat_neg = neg_indices.ravel()
+        flat_grad = grad_neg.reshape(-1, self.embedding_dim)
+        _update_embeddings(self.W_context, flat_neg, flat_grad, lr)
 
         return loss
 

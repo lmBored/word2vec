@@ -1,6 +1,7 @@
 import numpy as np
 
 from src.Distribution import NegativeSampleCache
+from src.models.sgns import _update_embeddings
 
 
 def sigmoid(x):
@@ -193,17 +194,21 @@ class CBOW:
         )
 
         # Update
-        # context_batch is (B, C), grad_context is (B, C, D)
-        flat_context_indices = context_batch.ravel()  # (B*C,)
-        flat_grad_context = grad_context.reshape(-1, self.embedding_dim)  # (B*C, D)
-        np.add.at(
-            self.W_input, flat_context_indices, -self.learning_rate * flat_grad_context
-        )  # np.add.at for duplicate indices
-        np.add.at(self.W_output, center_indices, -self.learning_rate * grad_pos)
-        # neg_indices is (B, K), grad_neg is (B, K, D)
-        flat_neg_indices = neg_indices.ravel()  # (B*K,)
-        flat_grad_neg = grad_neg.reshape(-1, self.embedding_dim)  # (B*K, D)
-        np.add.at(self.W_output, flat_neg_indices, -self.learning_rate * flat_grad_neg)
+        lr = self.learning_rate
+
+        # Context
+        # (B, C) indices, (B, C, D) gradients
+        flat_context = context_batch.ravel()
+        flat_grad_context = grad_context.reshape(-1, self.embedding_dim)
+        _update_embeddings(self.W_input, flat_context, flat_grad_context, lr)
+
+        # Center word
+        _update_embeddings(self.W_output, center_indices, grad_pos, lr)
+
+        # Negative sample
+        flat_neg = neg_indices.ravel()
+        flat_grad_neg = grad_neg.reshape(-1, self.embedding_dim)
+        _update_embeddings(self.W_output, flat_neg, flat_grad_neg, lr)
 
         return loss
 
