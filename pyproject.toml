@@ -15,6 +15,9 @@ dependencies = [
 
 [tool.ruff]
 line-length = 120
+exceptions = [
+    "Distribution.py",
+]
 lint.select = [
     "ALL", # include all the rules, including new ones
 ]
