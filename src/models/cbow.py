@@ -7,11 +7,15 @@ def sigmoid(x):
 
 
 class CBOW:
-    def __init__(self, window_size=2, num_neg_samples=5, learning_rate=0.025, embedding_dim=100, seed=None):
+    def __init__(
+        self, window_size=2, num_neg_samples=5, learning_rate=0.025, embedding_dim=100, seed=None, batch_size=512
+    ):
         self.window_size = window_size
         self.num_neg_samples = num_neg_samples
         self.learning_rate = learning_rate
         self.embedding_dim = embedding_dim
+        self.batch_size = batch_size
+        self.max_context_size = 2 * window_size
 
         if seed is not None:
             np.random.seed(seed)
@@ -51,6 +55,8 @@ class CBOW:
 
     def generate_training_data(self, corpus):
         data = []
+        max_ctx = self.max_context_size
+
         for sentence in corpus:
             words = sentence.lower().split()
             indices = [self.word2idx[w] for w in words if w in self.word2idx]
@@ -65,7 +71,12 @@ class CBOW:
 
                 # Only add if we have at least one context word
                 if context_indices:
-                    data.append((context_indices, center_idx))
+                    num_ctx = len(context_indices)
+                    padded_ctx = np.zeros(max_ctx, dtype=np.int64)
+                    mask = np.zeros(max_ctx, dtype=np.float64)
+                    padded_ctx[:num_ctx] = context_indices
+                    mask[:num_ctx] = 1.0
+                    data.append((padded_ctx, mask, center_idx))
 
         return data
 
@@ -76,6 +87,25 @@ class CBOW:
             valid = samples[samples != center_idx]
             negatives.extend(valid.tolist())
         return np.array(negatives[:k], dtype=np.int64)
+
+    def sample_negatives_batch(self, center_indices, k):
+        batch_size = len(center_indices)
+        # Sample a bit more because of filtering
+        oversample = int(k * 1.2) + 2
+        candidates = np.random.choice(self.vocab_size, size=(batch_size, oversample), p=self.noise_dist)
+
+        neg_samples = np.zeros((batch_size, k), dtype=np.int64)
+        for i in range(batch_size):
+            # Filter true center word
+            valid = candidates[i][candidates[i] != center_indices[i]]
+            if len(valid) >= k:
+                neg_samples[i] = valid[:k]
+            else:
+                # Need more samples
+                extra = self.sample_negatives(center_indices[i], k)
+                neg_samples[i] = extra
+
+        return neg_samples
 
     def forward_backward(self, context_indices, center_idx, neg_indices):
         context_indices_arr = np.array(context_indices)
@@ -113,6 +143,45 @@ class CBOW:
         grad_context = np.tile(grad_h / num_context, (num_context, 1))  # (|C|, D)
         return loss, grad_context, grad_center_pos, grad_center_neg, grad_h
 
+    def forward_backward_batch(self, context_batch, mask_batch, center_indices, neg_indices):
+        v_context = self.W_input[context_batch]  # (B, C, D)
+        v_center = self.W_output[center_indices]  # (B, D)
+        v_neg = self.W_output[neg_indices]  # (B, K, D)
+
+        # Forward
+        # h = masked mean of context embeddings
+        # (B, C) -> (B, C, 1)
+        mask_expanded = mask_batch[:, :, np.newaxis]  # (B, C, 1)
+        masked_context = v_context * mask_expanded  # (B, C, D)
+        context_sum = np.sum(masked_context, axis=1)  # (B, D)
+        num_valid = np.sum(mask_batch, axis=1, keepdims=True)  # (B, 1)
+        num_valid = np.maximum(num_valid, 1.0)
+        h = context_sum / num_valid  # (B, D)
+
+        scores_pos = np.sum(h * v_center, axis=1)  # (B,)
+        probs_pos = sigmoid(scores_pos)  # (B,)
+
+        # (B, K, D) @ (B, D) -> (B, K)
+        scores_neg = np.einsum("bkd,bd->bk", v_neg, h)  # (B, K)
+        probs_neg = sigmoid(scores_neg)  # (B, K)
+
+        # Loss
+        loss_pos = -np.log(probs_pos + 1e-10)  # (B,)
+        loss_neg = -np.sum(np.log(1 - probs_neg + 1e-10), axis=1)  # (B,)
+        total_loss = np.sum(loss_pos + loss_neg)
+
+        # Backward
+        errors_pos = probs_pos - 1.0  # (B,)
+        errors_neg = probs_neg  # (B, K)
+
+        # Gradients
+        grad_h = errors_pos[:, np.newaxis] * v_center + np.einsum("bk,bkd->bd", errors_neg, v_neg)  # (B, D)
+        grad_center_pos = errors_pos[:, np.newaxis] * h  # (B, D)
+        grad_center_neg = errors_neg[:, :, np.newaxis] * h[:, np.newaxis, :]  # (B, K, D)
+        grad_context = (grad_h / num_valid)[:, np.newaxis, :] * mask_expanded  # (B, C, D)
+
+        return total_loss, grad_context, grad_center_pos, grad_center_neg
+
     def step(self, context_indices, center_idx):
         neg_indices = self.sample_negatives(center_idx, self.num_neg_samples)
         loss, grad_context, grad_pos, grad_neg, _ = self.forward_backward(context_indices, center_idx, neg_indices)
@@ -125,32 +194,76 @@ class CBOW:
 
         return loss
 
+    def step_batch(self, context_batch, mask_batch, center_indices):
+        K = self.num_neg_samples
+
+        neg_indices = self.sample_negatives_batch(center_indices, K)  # (B, K)
+        loss, grad_context, grad_pos, grad_neg = self.forward_backward_batch(
+            context_batch, mask_batch, center_indices, neg_indices
+        )
+
+        # Update
+        # context_batch is (B, C), grad_context is (B, C, D)
+        flat_context_indices = context_batch.ravel()  # (B*C,)
+        flat_grad_context = grad_context.reshape(-1, self.embedding_dim)  # (B*C, D)
+        np.add.at(
+            self.W_input, flat_context_indices, -self.learning_rate * flat_grad_context
+        )  # np.add.at for duplicate indices
+        np.add.at(self.W_output, center_indices, -self.learning_rate * grad_pos)
+        # neg_indices is (B, K), grad_neg is (B, K, D)
+        flat_neg_indices = neg_indices.ravel()  # (B*K,)
+        flat_grad_neg = grad_neg.reshape(-1, self.embedding_dim)  # (B*K, D)
+        np.add.at(self.W_output, flat_neg_indices, -self.learning_rate * flat_grad_neg)
+
+        return loss
+
     def train(self, corpus, epochs=5, min_count=1, verbose=True):
         # Build vocab
         self.build_vocab(corpus, min_count)
 
         # Training data
         data = self.generate_training_data(corpus)
+        num_samples = len(data)
+
+        context_all = np.array([d[0] for d in data], dtype=np.int64)  # (N, C)
+        mask_all = np.array([d[1] for d in data], dtype=np.float64)  # (N, C)
+        center_all = np.array([d[2] for d in data], dtype=np.int64)  # (N,)
 
         if verbose:
             print(f"Vocab size: {self.vocab_size}")
-            print(f"len data: {len(data)}")
+            print(f"Training samples: {num_samples:,}")
+            print(f"Batch size: {self.batch_size}")
 
         losses = []
         for epoch in range(epochs):
-            np.random.shuffle(data)
+            # Shuffle data
+            indices = np.random.permutation(num_samples)
+            context_shuffled = context_all[indices]
+            mask_shuffled = mask_all[indices]
+            center_shuffled = center_all[indices]
+
             epoch_loss = 0.0
-            for context_indices, center_idx in data:
-                epoch_loss += self.step(context_indices, center_idx)
-            avg_loss = epoch_loss / len(data)
+            num_batches = (num_samples + self.batch_size - 1) // self.batch_size
+
+            for batch_idx in range(num_batches):
+                start = batch_idx * self.batch_size
+                end = min(start + self.batch_size, num_samples)
+
+                context_batch = context_shuffled[start:end]
+                mask_batch = mask_shuffled[start:end]
+                center_batch = center_shuffled[start:end]
+
+                epoch_loss += self.step_batch(context_batch, mask_batch, center_batch)
+
+            avg_loss = epoch_loss / num_samples
             losses.append(avg_loss)
 
-            if verbose and epoch % 10 == 0:
+            if verbose:
                 print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}")
 
         return losses
 
-    def get_embedding(self, word, combine=True) -> np.ndarray:
+    def get_embedding(self, word, combine=True):
         idx = self.word2idx[word.lower()]
         if combine:
             return (self.W_input[idx] + self.W_output[idx]) / 2.0
