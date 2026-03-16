@@ -1,4 +1,5 @@
 import numpy as np
+from numba import njit, prange
 
 from src.Distribution import NegativeSampleCache
 from src.models.sgns import _update_embeddings
@@ -7,6 +8,101 @@ from src.models.sgns import _update_embeddings
 def sigmoid(x):
     x = np.clip(x, -500, 500)
     return 1.0 / (1.0 + np.exp(-x))
+
+
+@njit(parallel=True, cache=True)
+def _forward_backward_batch_cbow(W_input, W_output, context_batch, mask_batch, center_idx, neg_idx):
+    B = len(center_idx)
+    C = context_batch.shape[1]
+    K = neg_idx.shape[1]
+    D = W_input.shape[1]
+
+    loss = 0.0
+
+    # Grad arrays
+    grad_context = np.zeros((B, C, D))
+    grad_center_pos = np.zeros((B, D))
+    grad_center_neg = np.zeros((B, K, D))
+
+    for b in prange(B):
+        c_idx = center_idx[b]
+        v_center = W_output[c_idx]  # (D,)
+
+        h = np.zeros(D)
+        num_valid = 0.0
+        for c in range(C):
+            if mask_batch[b, c] > 0:
+                ctx_idx = context_batch[b, c]
+                for d in range(D):
+                    h[d] += W_input[ctx_idx, d]
+                num_valid += 1.0
+
+        num_valid = max(num_valid, 1.0)
+        for d in range(D):
+            h[d] /= num_valid
+
+        # Pos score
+        score_pos = 0.0
+        for d in range(D):
+            score_pos += h[d] * v_center[d]
+
+        # Sigmoid
+        if score_pos > 500:
+            prob_pos = 1.0
+        elif score_pos < -500:
+            prob_pos = 0.0
+        else:
+            prob_pos = 1.0 / (1.0 + np.exp(-score_pos))
+
+        # Loss
+        loss += -np.log(prob_pos + 1e-10)
+
+        # Grad
+        error_pos = prob_pos - 1.0
+        for d in range(D):
+            grad_center_pos[b, d] = error_pos * h[d]
+
+        # Accum grad_h
+        grad_h = np.zeros(D)
+        for d in range(D):
+            grad_h[d] = error_pos * v_center[d]
+
+        # Negative samples
+        for k in range(K):
+            n_idx = neg_idx[b, k]
+            v_neg = W_output[n_idx]
+
+            # Neg score
+            score_neg = 0.0
+            for d in range(D):
+                score_neg += h[d] * v_neg[d]
+
+            # Sigmoid
+            if score_neg > 500:
+                prob_neg = 1.0
+            elif score_neg < -500:
+                prob_neg = 0.0
+            else:
+                prob_neg = 1.0 / (1.0 + np.exp(-score_neg))
+
+            # Loss
+            loss += -np.log(1.0 - prob_neg + 1e-10)
+
+            # Grad
+            for d in range(D):
+                grad_center_neg[b, k, d] = prob_neg * h[d]
+
+            # Accum grad_h from neg
+            for d in range(D):
+                grad_h[d] += prob_neg * v_neg[d]
+
+        # Backprop grad_h to context words
+        for c in range(C):
+            if mask_batch[b, c] > 0:
+                for d in range(D):
+                    grad_context[b, c, d] = grad_h[d] / num_valid
+
+    return loss, grad_context, grad_center_pos, grad_center_neg
 
 
 class CBOW:
@@ -189,8 +285,8 @@ class CBOW:
         K = self.num_neg_samples
 
         neg_indices = self.sample_negatives_batch(center_indices, K)  # (B, K)
-        loss, grad_context, grad_pos, grad_neg = self.forward_backward_batch(
-            context_batch, mask_batch, center_indices, neg_indices
+        loss, grad_context, grad_pos, grad_neg = _forward_backward_batch_cbow(
+            self.W_input, self.W_output, context_batch, mask_batch, center_indices, neg_indices
         )
 
         # Update

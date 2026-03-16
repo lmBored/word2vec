@@ -11,13 +11,83 @@ def sigmoid(x):
 
 @njit(parallel=True, cache=True)
 def _update_embeddings(W, indices, grads, lr):
-    """Grad update with jit, faster that np.add.at"""
+    """JIT-compiled gradient update with proper duplicate handling."""
     n_updates = len(indices)
     n_dims = W.shape[1]
     for d in prange(n_dims):
         for i in range(n_updates):
             idx = indices[i]
             W[idx, d] -= lr * grads[i, d]
+
+
+@njit(parallel=True, cache=True)
+def _forward_backward_batch(W_center, W_context, center_idx, context_idx, neg_idx):
+    B = len(center_idx)
+    K = neg_idx.shape[1]
+    D = W_center.shape[1]
+
+    loss = 0.0
+
+    # Grad arrays
+    grad_center = np.zeros((B, D))
+    grad_pos = np.zeros((B, D))
+    grad_neg = np.zeros((B, K, D))
+
+    for b in prange(B):
+        c_idx = center_idx[b]
+        ctx_idx = context_idx[b]
+
+        v_w = W_center[c_idx]
+        v_c = W_context[ctx_idx]
+
+        # Pos score
+        score_pos = 0.0
+        for d in range(D):
+            score_pos += v_c[d] * v_w[d]
+
+        # Sigmoid
+        if score_pos > 500:
+            prob_pos = 1.0
+        elif score_pos < -500:
+            prob_pos = 0.0
+        else:
+            prob_pos = 1.0 / (1.0 + np.exp(-score_pos))
+
+        # Loss
+        loss += -np.log(prob_pos + 1e-10)
+
+        # Gradients
+        error_pos = prob_pos - 1.0
+        for d in range(D):
+            grad_center[b, d] = error_pos * v_c[d]
+            grad_pos[b, d] = error_pos * v_w[d]
+
+        # Negative samples
+        for k in range(K):
+            n_idx = neg_idx[b, k]
+            v_neg = W_context[n_idx]
+
+            score_neg = 0.0
+            for d in range(D):
+                score_neg += v_neg[d] * v_w[d]
+
+            # Sigmoid
+            if score_neg > 500:
+                prob_neg = 1.0
+            elif score_neg < -500:
+                prob_neg = 0.0
+            else:
+                prob_neg = 1.0 / (1.0 + np.exp(-score_neg))
+
+            # Loss
+            loss += -np.log(1.0 - prob_neg + 1e-10)
+
+            # Gradients
+            for d in range(D):
+                grad_center[b, d] += prob_neg * v_neg[d]
+                grad_neg[b, k, d] = prob_neg * v_w[d]
+
+    return loss, grad_center, grad_pos, grad_neg
 
 
 class SGNS:
@@ -84,17 +154,6 @@ class SGNS:
 
         return pairs
 
-    def sample_negatives(self, context_idx, k):
-        negatives = []
-        while len(negatives) < k:
-            # Sample from noise dist
-            samples = np.random.choice(self.vocab_size, size=k - len(negatives), p=self.noise_dist)
-            # Filter true context word
-            valid = samples[samples != context_idx]
-            negatives.extend(valid.tolist())
-
-        return np.array(negatives[:k], dtype=np.int64)
-
     def sample_negatives_batch(self, context_indices, k):
         batch_size = len(context_indices)
         return self.neg_cache.sample_batch(batch_size, k)
@@ -126,51 +185,12 @@ class SGNS:
 
         return loss, grad_center, grad_context_pos, grad_context_neg
 
-    def forward_backward_batch(self, center_indices, context_indices, neg_indices):
-        v_w = self.W_center[center_indices]  # (B, D)
-        v_c = self.W_context[context_indices]  # (B, D)
-        v_neg = self.W_context[neg_indices]  # (B, K, D)
-
-        # Forward
-        scores_pos = np.sum(v_c * v_w, axis=1)  # (B,)
-        probs_pos = sigmoid(scores_pos)  # (B,)
-        # (B, K, D) @ (B, D, 1) -> (B, K, 1) -> (B, K)
-        scores_neg = np.einsum("bkd,bd->bk", v_neg, v_w)  # (B, K)
-        probs_neg = sigmoid(scores_neg)  # (B, K)
-
-        # Loss
-        loss_pos = -np.log(probs_pos + 1e-10)  # (B,)
-        loss_neg = -np.sum(np.log(1 - probs_neg + 1e-10), axis=1)  # (B,)
-        total_loss = np.sum(loss_pos + loss_neg)
-
-        # Backward
-        errors_pos = probs_pos - 1.0  # (B,)
-        errors_neg = probs_neg  # (B, K)
-
-        # Gradients
-        grad_center = errors_pos[:, np.newaxis] * v_c + np.einsum("bk,bkd->bd", errors_neg, v_neg)
-        grad_context_pos = errors_pos[:, np.newaxis] * v_w
-        grad_context_neg = errors_neg[:, :, np.newaxis] * v_w[:, np.newaxis, :]
-
-        return total_loss, grad_center, grad_context_pos, grad_context_neg
-
-    def step(self, center_idx, context_idx):
-        neg_indices = self.sample_negatives(context_idx, self.num_neg_samples)
-        loss, grad_center, grad_pos, grad_neg = self.forward_backward(center_idx, context_idx, neg_indices)
-
-        # updates
-        self.W_center[center_idx] -= self.learning_rate * grad_center
-        self.W_context[context_idx] -= self.learning_rate * grad_pos
-        self.W_context[neg_indices] -= self.learning_rate * grad_neg
-
-        return loss
-
     def step_batch(self, center_indices, context_indices):
         K = self.num_neg_samples
 
         neg_indices = self.sample_negatives_batch(context_indices, K)  # (B, K)
-        loss, grad_center, grad_pos, grad_neg = self.forward_backward_batch(
-            center_indices, context_indices, neg_indices
+        loss, grad_center, grad_pos, grad_neg = _forward_backward_batch(
+            self.W_center, self.W_context, center_indices, context_indices, neg_indices
         )
 
         # Update
