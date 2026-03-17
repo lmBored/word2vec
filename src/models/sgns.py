@@ -11,7 +11,6 @@ def sigmoid(x):
 
 @njit(parallel=True, cache=True)
 def _update_embeddings(W, indices, grads, lr):
-    """JIT-compiled gradient update with proper duplicate handling."""
     n_updates = len(indices)
     n_dims = W.shape[1]
     for d in prange(n_dims):

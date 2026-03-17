@@ -55,11 +55,19 @@ def print_results(results, train_time, vocab_size, losses):
     print(f"Train time: {train_time:.1f}s")
     print(f"Vocab size: {vocab_size:,}")
     print(f"Loss: {losses}")
-    print(f"WordSim-353: rho={ws353['spearman']:.3f} ({ws353['num_pairs_evaluated']}/{ws353['num_pairs_total']})")
-    print(f"SimLex-999: rho={sl999['spearman']:.3f} ({sl999['num_pairs_evaluated']}/{sl999['num_pairs_total']})")
+    print(
+        f"WordSim-353: spearman rho={ws353['spearman']:.3f} ({ws353['num_pairs_evaluated']}/{ws353['num_pairs_total']})"
+    )
+    print(
+        f"SimLex-999: spearman rho={sl999['spearman']:.3f} ({sl999['num_pairs_evaluated']}/{sl999['num_pairs_total']})"
+    )
     print(
         f"Analogy: {analogy['total_accuracy'] * 100:.1f}% ({analogy['correct_answers']}/{analogy['answered_questions']})"
     )
+    print("\nAnalogy by category:")
+    sorted_cats = sorted(analogy["category_scores"].items(), key=lambda x: x[1]["accuracy"], reverse=True)
+    for cat, scores in sorted_cats:
+        print(f"{cat}: {scores['accuracy'] * 100:.1f}% ({scores['correct']}/{scores['total']})")
 
 
 def main():
