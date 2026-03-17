@@ -73,4 +73,13 @@ uv run python evaluate.py --help
 **Success metrics**
 1. **Word Relatedness**: Spearman rho > 0.5 (WordSim-353)
 2. **Word Similarity**: Spearman rho > 0.3 (SimLex-999)
-3. **Word Analogy**: Accuracy > 40% on semantic subset (Text8 baseline)
+3. **Word Analogy**: Accuracy > 40% total (Text8 baseline)
+    + Accuracy > 50% on semantic
+    + Accuracy > 35% on syntactic
+
+
+## Experiments
+
+### Transfer Learning
+
+### Continual Learning
