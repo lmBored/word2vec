@@ -17,7 +17,7 @@ def train_model(model_type, corpus, epochs, embedding_dim, window_size, num_neg_
             num_neg_samples=num_neg_samples,
             learning_rate=learning_rate,
             embedding_dim=embedding_dim,
-            seed=42,
+            seed=67,
         )
     else:
         model = CBOW(
@@ -25,7 +25,7 @@ def train_model(model_type, corpus, epochs, embedding_dim, window_size, num_neg_
             num_neg_samples=num_neg_samples,
             learning_rate=learning_rate,
             embedding_dim=embedding_dim,
-            seed=42,
+            seed=67,
         )
 
     losses = model.train(corpus, epochs=epochs, min_count=min_count, verbose=True)
