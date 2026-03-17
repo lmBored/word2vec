@@ -125,7 +125,7 @@ def _get_word_vector(word, embeddings, word2idx):
     raise TypeError
 
 
-def evaluate_similarity(embeddings, word2idx, dataset="wordsim353", data_dir=None, verbose=True):
+def evaluate_similarity(embeddings, word2idx, dataset="wordsim353", data_dir=None):
     if data_dir is None:
         data_dir = data
 
@@ -136,8 +136,6 @@ def evaluate_similarity(embeddings, word2idx, dataset="wordsim353", data_dir=Non
     elif dataset_name in {"simlex999", "simlex-999"}:
         pairs = _load_simlex999(data_dir)
         label = "SimLex-999"
-    else:
-        raise ValueError("Unknown dataset")
 
     human_scores = []
     model_scores = []

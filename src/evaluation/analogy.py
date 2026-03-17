@@ -153,7 +153,7 @@ def _finalize_results(results):
     return results
 
 
-def eval_analogy(embeddings, word2idx, method, data_dir="data/evaluation", verbose=False):
+def eval_analogy(embeddings, word2idx, data_dir="data/evaluation", verbose=False):
     filepath = download_analogy_dataset(data_dir)
     categories = load_analogy_dataset(filepath)
     normalized = normalize_embeddings(embeddings)
