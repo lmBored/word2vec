@@ -10,6 +10,6 @@ Text8 is a standard dataset derived from the first 100MB of cleaned Wikipedia te
 
 ### Evaluation Datasets
 
-+ WordSim-353
-+ SimLex-999
-+ Google Analogies
++ WordSim-353: Word relatedness
++ SimLex-999: Word similarity
++ Google Analogies: Word analogy accuracy
