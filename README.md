@@ -17,7 +17,7 @@ An implementation of Word2Vec (Skip-gram and CBOW) [1] in pure NumPy
 
 **Source**: http://mattmahoney.net/dc/text8.zip
 
-Text8 is a standard dataset derived from the first 100MB of cleaned Wikipedia text (Mahoney, 2006) [2]. It was used in the original word2vec experiments [1].
+Text8 is a standard dataset derived from the first 100MB of cleaned Wikipedia text (Mahoney, 2006) [2]. It was used in the original word2vec experiments [1], but in the original paper it's 1B tokens, here I only use the 17M tokens version.
 
 | Property | Value |
 |----------|-------|
