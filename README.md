@@ -93,13 +93,38 @@ uv run python evaluate.py --help
 
 ## Results
 
-Result/training logs can be found in `results` folder. Those are trained on more epochs as dataset is smaller than the original 1B tokens dataset used in the paper.
+Training logs in `results/` folder. Benchmarks on Text8 (19M tokens). Those are trained on more epochs as dataset is smaller than the original 1B tokens dataset used in the paper.
 
-<!-- ## Experiments
+### SGNS vs CBOW (100 epochs)
 
-### Transfer Learning
+<p align="center">
+  <img src="results/plots/loss_curves.png" width="48%">
+  <img src="results/plots/metrics_comparison.png" width="48%">
+</p>
 
-### Continual Learning -->
+<p align="center">
+  <img src="results/plots/analogy_breakdown.png" width="70%">
+</p>
+
+| Model | WordSim-353 | SimLex-999 | Analogy | Time |
+|-|-|-|-|-|
+| SGNS | 0.690 | 0.223 | **3.3%** | 13888.9s |
+| CBOW | 0.688 | **0.260** | 1.1% | 2309.4s |
+
+SGNS outperforms CBOW on analogy (3x better), while CBOW is better on SimLex-999. CBOW loss converges to 0.71 vs SGNS's 2.03 (but lower loss doesn't mean better embeddings so this doesn't say much). One important thing to note is SGNS takes 6 times longer to train compared to CBOW.
+
+### SGNS: 10 vs 100 Epochs
+
+<p align="center">
+  <img src="results/plots/sgns_epochs_comparison.png" width="80%">
+</p>
+
+| Epochs | WordSim-353 | SimLex-999 | Analogy | Time |
+|-|-|-|-|-|
+| 10  | **0.714** | **0.274** | 1.3% | 0.65h |
+| 100 | 0.690 | 0.223 | **3.3%**| 3.86h |
+
+More epochs improve analogy but hurt similarity metrics slightly, so maybe the model is overfitting to some patterns.
 
 ## References
 
