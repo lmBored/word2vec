@@ -7,7 +7,6 @@ An implementation of Word2Vec (Skip-gram and CBOW) [1] in pure NumPy
 - [Dataset](#dataset)
 - [Implemented Methodds](#implemented-methods)
 - [Usage](#usage)
-<!-- - [Experiments](#experiments) -->
 - [References](#references)
 
 
@@ -21,7 +20,7 @@ Text8 is a standard dataset derived from the first 100MB of cleaned Wikipedia te
 
 | Property | Value |
 |----------|-------|
-| Tokens | 17 million |
+| Tokens | 19M (19429295) |
 | Vocabulary | 60,000 |
 | Size | 95.4 MB |
 | Content | English Wikipedia |
@@ -93,7 +92,7 @@ uv run python evaluate.py --help
 
 ## Results
 
-Result/training logs can be found in `results` folder.
+Result/training logs can be found in `results` folder. Those are trained on more epochs as dataset is smaller than the original 1B tokens dataset used in the paper.
 
 <!-- ## Experiments
 

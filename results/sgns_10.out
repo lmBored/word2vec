@@ -1,0 +1,67 @@
+Train command: uv run python evaluate.py --model sgns --epochs 100 --dim 300 --neg 10 --lr 0.025 --tokens 17000000
+
+Vocab size: 71280
+Training pairs: 41,591,638
+Batch size: 512
+Epoch 1/10, Loss: 3.2153
+Epoch 2/10, Loss: 2.8257
+Epoch 3/10, Loss: 2.6911
+Epoch 4/10, Loss: 2.5916
+Epoch 5/10, Loss: 2.5140
+Epoch 6/10, Loss: 2.4537
+Epoch 7/10, Loss: 2.4050
+Epoch 8/10, Loss: 2.3652
+Epoch 9/10, Loss: 2.3317
+Epoch 10/10, Loss: 2.3035
+
+Results:
+Train time: 2357.7s
+Vocab size: 71,280
+Loss: [3.215309038648261, 2.8257138822077117, 2.691068901069953, 2.591567732897208, 2.51397223522778, 2.4536751691488727, 2.4050305139491797, 2.365157311731008, 2.3317183764401674, 2.303489718849907]
+WordSim-353: spearman rho=0.714 (351/353)
+SimLex-999: spearman rho=0.274 (992/999)
+Analogy: 1.3% (229/17827)
+
+Analogy by category:
+gram8-plural: 9.8% (131/1332)
+family: 3.6% (15/420)
+gram9-plural-verbs: 2.2% (19/870)
+gram5-present-participle: 0.9% (9/1056)
+gram6-nationality-adjective: 0.7% (11/1521)
+gram2-opposite: 0.7% (5/756)
+city-in-state: 0.6% (15/2330)
+gram7-past-tense: 0.6% (10/1560)
+gram1-adjective-to-adverb: 0.4% (4/992)
+capital-common-countries: 0.4% (2/506)
+gram3-comparative: 0.4% (5/1332)
+capital-world: 0.1% (3/3564)
+currency: 0.0% (0/596)
+gram4-superlative: 0.0% (0/992)
+
+
+==============
+JOB STATISTICS
+==============
+
+JobID             State     AveRSS     MaxRSS
+------------ ---------- ---------- ----------
+5062176       COMPLETED
+5062176.bat+  COMPLETED   5236056K   5236056K
+5062176.ext+  COMPLETED        68K        68K
+
+Job ID: 5062176
+Cluster: umbrella
+User/Group: 20231193/umbrella
+State: COMPLETED (exit code 0)
+Nodes: 1
+Cores per node: 8
+CPU Utilized: 04:21:19
+CPU Efficiency: 81.36% of 05:21:12 core-walltime
+Job Wall-clock time: 00:40:09
+Memory Utilized: 4.99 GB
+Memory Efficiency: 15.60% of 32.00 GB
+
+If "OOM Killed" appears in the job output, or if any job step state
+is "OUT_OF_MEMORY", you may have requested too little memory. Please
+see https://supercomputing.tue.nl/documentation/kb/slurm/6/ for more
+information.
