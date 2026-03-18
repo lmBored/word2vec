@@ -7,6 +7,7 @@ An implementation of Word2Vec (Skip-gram and CBOW) [1] in pure NumPy
 - [Dataset](#dataset)
 - [Implemented Methodds](#implemented-methods)
 - [Usage](#usage)
+- [Results](#results)
 - [References](#references)
 
 
