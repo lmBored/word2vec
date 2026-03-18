@@ -47,8 +47,8 @@ Text8 is a standard dataset derived from the first 100MB of cleaned Wikipedia te
 
 + Skip-gram with Negative Sampling (SGNS)
 + Continuous Bag of Words (CBOW) with Negative Sampling
-
-Both with JIT-compiled forward/backward and gradient update
++ JIT-compiled forward/backward and gradient update
++ Subsampling
 
 ## Usage
 

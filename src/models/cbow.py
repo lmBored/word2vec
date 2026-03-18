@@ -107,7 +107,14 @@ def _forward_backward_batch_cbow(W_input, W_output, context_batch, mask_batch, c
 
 class CBOW:
     def __init__(
-        self, window_size=2, num_neg_samples=5, learning_rate=0.025, embedding_dim=100, seed=None, batch_size=512
+        self,
+        window_size=2,
+        num_neg_samples=5,
+        learning_rate=0.025,
+        embedding_dim=100,
+        seed=None,
+        batch_size=512,
+        subsample_threshold=1e-5,
     ):
         self.window_size = window_size
         self.num_neg_samples = num_neg_samples
@@ -115,6 +122,7 @@ class CBOW:
         self.embedding_dim = embedding_dim
         self.batch_size = batch_size
         self.max_context_size = 2 * window_size
+        self.subsample_threshold = subsample_threshold
 
         if seed is not None:
             np.random.seed(seed)
@@ -124,6 +132,8 @@ class CBOW:
         self.word2idx = {}
         self.idx2word = {}
         self.word_counts = np.array([])
+        self.word_freqs = np.array([])
+        self.discard_probs = None
         self.noise_dist = np.array([])
         self.W_input = np.array([])
         self.W_output = np.array([])
@@ -151,6 +161,16 @@ class CBOW:
 
         self.neg_cache = NegativeSampleCache(self.noise_dist)
 
+        # From OG paper, we should do subsampling
+        # Word frequencies and discard probabilities for subsampling
+        # P(discard | w) = 1 - sqrt(t / f(w))
+        total_count = self.word_counts.sum()
+        self.word_freqs = self.word_counts / total_count
+        if self.subsample_threshold is not None:
+            self.discard_probs = np.maximum(0, 1 - np.sqrt(self.subsample_threshold / self.word_freqs))
+        else:
+            self.discard_probs = None
+
         scale = 0.5 / self.embedding_dim
         self.W_input = np.random.uniform(-scale, scale, (self.vocab_size, self.embedding_dim))
         self.W_output = np.random.uniform(-scale, scale, (self.vocab_size, self.embedding_dim))
@@ -162,6 +182,11 @@ class CBOW:
         for sentence in corpus:
             words = sentence.lower().split()
             indices = [self.word2idx[w] for w in words if w in self.word2idx]
+
+            # Apply subsampling
+            if self.discard_probs is not None and len(indices) > 0:
+                keep_mask = np.random.random(len(indices)) > self.discard_probs[indices]
+                indices = [idx for idx, keep in zip(indices, keep_mask) if keep]
 
             for i, center_idx in enumerate(indices):
                 start = max(0, i - self.window_size)
