@@ -209,7 +209,7 @@ class SGNS:
 
         return loss, grad_center, grad_context_pos, grad_context_neg
 
-    def step_batch(self, center_indices, context_indices):
+    def step_batch(self, center_indices, context_indices, lr):
         K = self.num_neg_samples
 
         neg_indices = self.sample_negatives_batch(context_indices, K)  # (B, K)
@@ -217,8 +217,7 @@ class SGNS:
             self.W_center, self.W_context, center_indices, context_indices, neg_indices
         )
 
-        # Update
-        lr = self.learning_rate
+        # Update with current learning rate
         _update_embeddings(self.W_center, center_indices, grad_center, lr)
         _update_embeddings(self.W_context, context_indices, grad_pos, lr)
 
@@ -228,12 +227,14 @@ class SGNS:
 
         return loss
 
-    def train(self, corpus, epochs=5, min_count=1, verbose=True):
+    def train(self, corpus, epochs=5, min_count=1, verbose=True, min_lr=0.0001):
         self.build_vocab(corpus, min_count)
 
         pairs = self.generate_training_pairs(corpus)
         pairs = np.array(pairs, dtype=np.int64)
         num_pairs = len(pairs)
+        # Add (self.batch_size - 1) so any partially filled batch also gets counted
+        total_batches = epochs * ((num_pairs + self.batch_size - 1) // self.batch_size)
 
         if verbose:
             print(f"Vocab size: {self.vocab_size}")
@@ -241,6 +242,7 @@ class SGNS:
             print(f"Batch size: {self.batch_size}")
 
         losses = []
+        batch_count = 0
         for epoch in range(epochs):
             # Shuffle pairs
             indices = np.random.permutation(num_pairs)
@@ -250,6 +252,11 @@ class SGNS:
             num_batches = (num_pairs + self.batch_size - 1) // self.batch_size
 
             for batch_idx in range(num_batches):
+                # Linear decay lr
+                progress = batch_count / total_batches
+                lr = self.learning_rate * (1 - progress) + min_lr * progress
+                batch_count += 1
+
                 start = batch_idx * self.batch_size
                 end = min(start + self.batch_size, num_pairs)
 
@@ -257,7 +264,7 @@ class SGNS:
                 center_indices = batch_pairs[:, 0]
                 context_indices = batch_pairs[:, 1]
 
-                epoch_loss += self.step_batch(center_indices, context_indices)
+                epoch_loss += self.step_batch(center_indices, context_indices, lr)
 
             avg_loss = epoch_loss / num_pairs
             losses.append(avg_loss)

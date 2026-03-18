@@ -306,7 +306,7 @@ class CBOW:
 
         return loss
 
-    def step_batch(self, context_batch, mask_batch, center_indices):
+    def step_batch(self, context_batch, mask_batch, center_indices, lr):
         K = self.num_neg_samples
 
         neg_indices = self.sample_negatives_batch(center_indices, K)  # (B, K)
@@ -314,9 +314,7 @@ class CBOW:
             self.W_input, self.W_output, context_batch, mask_batch, center_indices, neg_indices
         )
 
-        # Update
-        lr = self.learning_rate
-
+        # Update with current learning rate
         # Context
         # (B, C) indices, (B, C, D) gradients
         flat_context = context_batch.ravel()
@@ -333,13 +331,15 @@ class CBOW:
 
         return loss
 
-    def train(self, corpus, epochs=5, min_count=1, verbose=True):
+    def train(self, corpus, epochs=5, min_count=1, verbose=True, min_lr=0.0001):
         # Build vocab
         self.build_vocab(corpus, min_count)
 
         # Training data
         data = self.generate_training_data(corpus)
         num_samples = len(data)
+        # Add (self.batch_size - 1) so any partially filled batch also gets counted
+        total_batches = epochs * ((num_samples + self.batch_size - 1) // self.batch_size)
 
         context_all = np.array([d[0] for d in data], dtype=np.int64)  # (N, C)
         mask_all = np.array([d[1] for d in data], dtype=np.float64)  # (N, C)
@@ -351,6 +351,7 @@ class CBOW:
             print(f"Batch size: {self.batch_size}")
 
         losses = []
+        batch_count = 0
         for epoch in range(epochs):
             # Shuffle data
             indices = np.random.permutation(num_samples)
@@ -362,6 +363,11 @@ class CBOW:
             num_batches = (num_samples + self.batch_size - 1) // self.batch_size
 
             for batch_idx in range(num_batches):
+                # Linear decay lr
+                progress = batch_count / total_batches
+                lr = self.learning_rate * (1 - progress) + min_lr * progress
+                batch_count += 1
+
                 start = batch_idx * self.batch_size
                 end = min(start + self.batch_size, num_samples)
 
@@ -369,7 +375,7 @@ class CBOW:
                 mask_batch = mask_shuffled[start:end]
                 center_batch = center_shuffled[start:end]
 
-                epoch_loss += self.step_batch(context_batch, mask_batch, center_batch)
+                epoch_loss += self.step_batch(context_batch, mask_batch, center_batch, lr)
 
             avg_loss = epoch_loss / num_samples
             losses.append(avg_loss)

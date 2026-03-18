@@ -48,7 +48,7 @@ Text8 is a standard dataset derived from the first 100MB of cleaned Wikipedia te
 + Skip-gram with Negative Sampling (SGNS)
 + Continuous Bag of Words (CBOW) with Negative Sampling
 + JIT-compiled forward/backward and gradient update
-+ Subsampling
++ Subsampling; Linear decay
 
 ## Usage
 
@@ -77,6 +77,9 @@ uv run train_sgns.py
 ```bash
 uv run python evaluate.py --model cbow --epochs 3
 
+# Full training
+uv run python evaluate.py --model sgns --epochs 100 --dim 300 --neg 10 --lr 0.025 --tokens 17000000
+
 # To show all available flags
 uv run python evaluate.py --help
 ```
@@ -88,6 +91,9 @@ uv run python evaluate.py --help
     + Accuracy > 50% on semantic
     + Accuracy > 35% on syntactic
 
+## Results
+
+Result/training logs can be found in `results` folder.
 
 <!-- ## Experiments
 

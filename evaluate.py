@@ -10,7 +10,18 @@ from src.models.cbow import CBOW
 from src.models.sgns import SGNS
 
 
-def train_model(model_type, corpus, epochs, embedding_dim, window_size, num_neg_samples, learning_rate, min_count):
+def train_model(
+    model_type,
+    corpus,
+    epochs,
+    embedding_dim,
+    window_size,
+    num_neg_samples,
+    learning_rate,
+    min_count,
+    subsample_threshold,
+    min_lr,
+):
     if model_type == "sgns":
         model = SGNS(
             window_size=window_size,
@@ -18,6 +29,7 @@ def train_model(model_type, corpus, epochs, embedding_dim, window_size, num_neg_
             learning_rate=learning_rate,
             embedding_dim=embedding_dim,
             seed=67,
+            subsample_threshold=subsample_threshold,
         )
     else:
         model = CBOW(
@@ -26,9 +38,10 @@ def train_model(model_type, corpus, epochs, embedding_dim, window_size, num_neg_
             learning_rate=learning_rate,
             embedding_dim=embedding_dim,
             seed=67,
+            subsample_threshold=subsample_threshold,
         )
 
-    losses = model.train(corpus, epochs=epochs, min_count=min_count, verbose=True)
+    losses = model.train(corpus, epochs=epochs, min_count=min_count, verbose=True, min_lr=min_lr)
     return model, losses
 
 
@@ -78,8 +91,10 @@ def main():
     parser.add_argument("--window", type=int, default=5)
     parser.add_argument("--neg", type=int, default=5)
     parser.add_argument("--lr", type=float, default=0.025)
+    parser.add_argument("--min-lr", type=float, default=0.0001)
     parser.add_argument("--min-count", type=int, default=5)
     parser.add_argument("--tokens", type=int, default=1000000)
+    parser.add_argument("--subsample", type=float, default=1e-5)
     args = parser.parse_args()
 
     tokens = load_text8()[: args.tokens]
@@ -87,7 +102,16 @@ def main():
 
     start = time.time()
     model, losses = train_model(
-        args.model, corpus, args.epochs, args.dim, args.window, args.neg, args.lr, args.min_count
+        args.model,
+        corpus,
+        args.epochs,
+        args.dim,
+        args.window,
+        args.neg,
+        args.lr,
+        args.min_count,
+        args.subsample,
+        args.min_lr,
     )
     train_time = time.time() - start
 
