@@ -108,8 +108,8 @@ Training logs in `results/` folder. Benchmarks on Text8 (19M tokens). Those are 
 
 | Model | WordSim-353 | SimLex-999 | Analogy | Time |
 |-|-|-|-|-|
-| SGNS | 0.690 | 0.223 | **3.3%** | 13888.9s |
-| CBOW | 0.688 | **0.260** | 1.1% | 2309.4s |
+| SGNS | 0.690 | 0.223 | **3.3%** | 13888.9s (3.86h) |
+| CBOW | 0.688 | **0.260** | 1.1% | 2309.4s (0.64h) |
 
 SGNS outperforms CBOW on analogy (3x better), while CBOW is better on SimLex-999. CBOW loss converges to 0.71 vs SGNS's 2.03 (but lower loss doesn't mean better embeddings so this doesn't say much). One important thing to note is SGNS takes 6 times longer to train compared to CBOW.
 
