@@ -1,6 +1,6 @@
 # Word2Vec
 
-An implementation of Word2Vec (Skip-gram and CBOW) [1] in pure NumPy
+A implementation of Word2Vec (Skip-gram and CBOW) [1] in pure NumPy **that is fast**
 
 ## Table of Contents
 
@@ -48,7 +48,9 @@ Text8 is a standard dataset derived from the first 100MB of cleaned Wikipedia te
 + Skip-gram with Negative Sampling (SGNS)
 + Continuous Bag of Words (CBOW) with Negative Sampling
 + JIT-compiled forward/backward and gradient update
-+ Subsampling; Linear decay
++ Subsampling
++ Linear decay
++ Cache negative sampling
 
 ## Usage
 
