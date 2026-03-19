@@ -271,6 +271,7 @@ class SGNS:
 
             if verbose:
                 print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}")
+                self.save(f"checkpoints/sgns_epoch_{epoch + 1}.npz")
 
         return losses
 
@@ -294,3 +295,6 @@ class SGNS:
 
         similarities.sort(key=lambda x: x[1], reverse=True)
         return similarities[:top_k]
+
+    def save(self, path):
+        np.savez(path, W_center=self.W_center, W_context=self.W_context, vocab=list(self.word2idx.keys()))
