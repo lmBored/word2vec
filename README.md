@@ -8,6 +8,7 @@ A implementation of Word2Vec (Skip-gram and CBOW) [1] in pure NumPy **that is fa
 - [Implemented Methodds](#implemented-methods)
 - [Usage](#usage)
 - [Results](#results)
+- [Future Work](#future-work)
 - [References](#references)
 
 
@@ -127,6 +128,14 @@ SGNS outperforms CBOW on analogy (3x better), while CBOW is better on SimLex-999
 | 100 | 0.690 | 0.223 | **3.3%**| 3.86h |
 
 More epochs improve analogy but hurt similarity metrics slightly, so maybe the model is overfitting to some patterns.
+
+## Future Work
+*Note*: Some ideas are similar as my thought on future work is generalisation and specialization for specific use cases/settings.
+1. Add new words without full retraining (Vocab expansion - "Online Learning of Word Embeddings" (Kaji & Kobayashi 2017))
+2. Finetune on specific domain data (Domain adaptation - "Learning Domain-Specific Word Embeddings from Sparse Data" (Xu et al. 2018))
+3. (Multi-Domain) Continual Learning. Whether catastrophic forgetting or not.
+4. Transfer Learning - Domain adaptation experiments with secondary datasets.
+
 
 ## References
 
