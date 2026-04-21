@@ -65,7 +65,7 @@ uv sync
 pip install -e .
 ```
 
-### Training
+### Train
 
 ```bash
 # CBOW
@@ -75,7 +75,7 @@ uv run train_cbow.py
 uv run train_sgns.py
 ```
 
-### Evaluate
+### Train and Evaluate
 
 ```bash
 uv run python evaluate.py --model cbow --epochs 3
@@ -139,10 +139,12 @@ More epochs improve analogy but hurt similarity metrics slightly, so maybe the m
 
 ## References
 
-[1] Mikolov, T., Chen, K., Corrado, G., & Dean, J. (2013). Efficient Estimation of Word Representations in Vector Space. 1st International Conference on Learning Representations (ICLR).
+[1] Mikolov, T., Chen, K., Corrado, G., & Dean, J. (2013). Efficient Estimation of Word Representations in Vector Space. 1st International Conference on Learning Representations (ICLR). https://arxiv.org/abs/1301.3781
 
 [2] Mahoney, M. (2006). About the Test Data / Rationale for a Large Text Compression Benchmark. *http://mattmahoney.net/dc/textdata.html*.
 
 [3] Finkelstein, L., Gabrilovich, E., Matias, Y., Rivlin, E., Solan, Z., Wolfman, G., & Ruppin, E. (2002). Placing Search in Context: The Concept Revisited. ACM Transactions on Information Systems, 20(1), 116-131.
 
 [4] Hill, F., Reichart, R., & Korhonen, A. (2015). SimLex-999: Evaluating Semantic Models With (Genuine) Similarity Estimation. Computational Linguistics, 41(4), 665-695.
+
+[5] Mikolov, T., Sutskever, I., Chen, K., Corrado, G. S., & Dean, J. (2013). Distributed representations of words and phrases and their compositionality. Advances in Neural Information Processing Systems, 26. https://arxiv.org/abs/1310.4546
