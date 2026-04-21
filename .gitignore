@@ -9,3 +9,6 @@ __pycache__/
 .idea/
 .vscode/
 *.swp
+
+# Mac
+.DS_Store
