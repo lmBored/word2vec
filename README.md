@@ -135,6 +135,7 @@ More epochs improve analogy but hurt similarity metrics slightly, so maybe the m
 2. Finetune on specific domain data (Domain adaptation - "Learning Domain-Specific Word Embeddings from Sparse Data" (Xu et al. 2018))
 3. (Multi-Domain) Continual Learning. Whether catastrophic forgetting or not.
 4. Transfer Learning - Domain adaptation experiments with secondary datasets.
+5. Fix seeding mechanism (create rng and ensure it works with jit). Make seeding an arguments.
 
 
 ## References
